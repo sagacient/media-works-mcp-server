@@ -8,6 +8,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -588,40 +589,48 @@ func getFilename(path string) string {
 }
 
 func formatResult(result *executor.ExecutionResult) string {
-	var sb strings.Builder
+	output := ""
 
 	if result.TimedOut {
-		sb.WriteString("WARNING: Execution timed out!\n\n")
+		output += "WARNING: Execution timed out!\n\n"
 	}
 
 	if result.Stdout != "" {
-		sb.WriteString(result.Stdout)
+		output += result.Stdout
 	}
 
 	if result.Stderr != "" {
-		sb.WriteString("\n--- Errors ---\n")
-		sb.WriteString(result.Stderr)
+		if output != "" {
+			output += "\n"
+		}
+		output += "=== Stderr ===\n" + result.Stderr
 	}
 
 	if result.ExitCode != 0 {
-		sb.WriteString(fmt.Sprintf("\nExit code: %d\n", result.ExitCode))
+		if output != "" {
+			output += "\n"
+		}
+		output += fmt.Sprintf("=== Error ===\nExit code: %d", result.ExitCode)
 	}
 
-	sb.WriteString(fmt.Sprintf("\nDuration: %s\n", result.Duration.Round(time.Millisecond)))
+	output += fmt.Sprintf("\n\n[Execution completed in %v with exit code %d]", result.Duration.Round(time.Millisecond), result.ExitCode)
 
-	if len(result.OutputFiles) > 0 {
-		sb.WriteString(fmt.Sprintf("\nOutput files (%d):\n", len(result.OutputFiles)))
-		if result.ExecutionID != "" {
-			sb.WriteString(fmt.Sprintf("Execution ID: %s\n", result.ExecutionID))
+	// Append execution metadata as parseable JSON for downstream clients
+	// This enables secure file serving and proper URL generation
+	if result.ExecutionID != "" {
+		metadata := map[string]interface{}{
+			"execution_id": result.ExecutionID,
+			"output_files": result.OutputFiles,
+			"output_path":  result.OutputPath,
 		}
-		for _, f := range result.OutputFiles {
-			sb.WriteString(fmt.Sprintf("  - %s (%d bytes)\n", f.Name, f.Size))
+		metadataJSON, err := json.Marshal(metadata)
+		if err == nil {
+			output += "\n\n[EXECUTION_METADATA]" + string(metadataJSON) + "[/EXECUTION_METADATA]"
 		}
-		sb.WriteString("\nUse 'get_output' with the execution_id to retrieve files.\n")
 	}
 
 	log.Printf("Execution complete: exit=%d, duration=%s, files=%d",
 		result.ExitCode, result.Duration.Round(time.Millisecond), len(result.OutputFiles))
 
-	return sb.String()
+	return output
 }
