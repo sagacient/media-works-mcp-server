@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # Media Works MCP Server - stdio mode (for MCP clients)
+  media-works-stdio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount Docker socket for container orchestration
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent storage for uploaded files
+      - media-works-storage:/storage
+      # Shared temp directory (must be accessible to Docker)
+      - /tmp/media-works:/tmp/media-works
+    environment:
+      - TRANSPORT=stdio
+      - MAX_WORKERS=5
+      - EXECUTION_TIMEOUT=300s
+      - DOCKER_IMAGE=sagacient/mediaworks:latest
+      - SCAN_UPLOADS=true
+      - SCAN_ON_FAIL=reject
+      - OUTPUT_TTL=24h
+    stdin_open: true
+
+  # Media Works MCP Server - HTTP mode (for web clients)
+  media-works-http:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - media-works-storage:/storage
+      - /tmp/media-works:/tmp/media-works
+    environment:
+      - TRANSPORT=http
+      - HTTP_PORT=8080
+      - MAX_WORKERS=5
+      - EXECUTION_TIMEOUT=300s
+      - DOCKER_IMAGE=sagacient/mediaworks:latest
+      - SCAN_UPLOADS=true
+      - SCAN_ON_FAIL=reject
+      - OUTPUT_TTL=24h
+
+  # Media Works MCP Server - HTTP mode for Colima users (macOS)
+  media-works-http-colima:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ~/.colima/default/docker.sock:/var/run/docker.sock
+      - media-works-storage:/storage
+      - /tmp/media-works:/tmp/media-works
+    environment:
+      - TRANSPORT=http
+      - HTTP_PORT=8080
+      - MAX_WORKERS=5
+      - EXECUTION_TIMEOUT=300s
+      - DOCKER_IMAGE=sagacient/mediaworks:latest
+      - SCAN_UPLOADS=false
+      - OUTPUT_TTL=24h
+
+volumes:
+  media-works-storage:
